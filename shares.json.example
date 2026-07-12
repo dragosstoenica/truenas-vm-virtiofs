@@ -1,0 +1,9 @@
+{
+  "myvm": [
+    {"source": "/mnt/tank/dev", "tag": "dev"},
+    {"source": "/mnt/tank/media", "tag": "media"}
+  ],
+  "othervm": [
+    {"source": "/mnt/tank/shared", "tag": "shared"}
+  ]
+}

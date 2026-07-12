@@ -1,0 +1,56 @@
+--- a/plugins/vm/supervisor/domain_xml.py	2026-07-12 16:18:59
++++ b/plugins/vm/supervisor/domain_xml.py	2026-07-12 19:24:50
+@@ -51,7 +51,53 @@
+             )
+         )
+ 
++    # virtiofs patch: attach host-path shares (see @VIRTIOFS_BASE@/)
++    virtiofs_extend(vm_data, children)
++
+     return children
++
++
++def virtiofs_extend(vm_data, children):
++    """virtiofs patch: attach host-path shares to VMs listed in shares.json.
++
++    Fail-safe by design: any problem (missing/malformed shares.json, missing
++    virtiofsd binary, missing source dir) leaves the domain XML unchanged so
++    this patch can never prevent a VM from starting.
++    """
++    base = '@VIRTIOFS_BASE@'
++    # binary must live under a path libvirt's AppArmor profile allows
++    # (/usr/libexec/virtiofsd); apply-patch.sh installs it there
++    binary = '/usr/libexec/virtiofsd'
++    try:
++        import json
++        with open(os.path.join(base, 'shares.json')) as f:
++            shares = json.load(f).get(vm_data['name']) or []
++        shares = [s for s in shares if os.path.isdir(s['source'])]
++        if not shares or not os.access(binary, os.X_OK):
++            return
++        # vhost-user-fs requires shared guest memory; reuse the memoryBacking
++        # element if PCI passthrough already added one
++        backing = next((c for c in children if c.tag == 'memoryBacking'), None)
++        if backing is None:
++            backing = create_element('memoryBacking')
++            children.append(backing)
++        backing.append(create_element('source', type='memfd'))
++        backing.append(create_element('access', mode='shared'))
++        devices = next(c for c in children if c.tag == 'devices')
++        for share in shares:
++            devices.append(create_element(
++                'filesystem', type='mount', accessmode='passthrough', attribute_dict={
++                    'children': [
++                        create_element('driver', type='virtiofs', queue='1024'),
++                        create_element('binary', path=binary, xattr='on'),
++                        create_element('source', dir=share['source']),
++                        create_element('target', dir=share['tag']),
++                    ]
++                }
++            ))
++    except Exception:
++        import logging
++        logging.getLogger(__name__).exception('virtiofs patch: skipped due to error')
+ 
+ 
+ def clock_xml(vm_data):

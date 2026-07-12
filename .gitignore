@@ -1,0 +1,11 @@
+# personal config — commit shares.json.example instead
+shares.json
+
+# downloaded / generated artifacts
+virtiofsd
+*.deb
+middleware-virtiofs.patch
+
+# runtime artifacts on the deployed copy
+backups/
+
